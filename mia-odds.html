@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grand Prize Farming Optimizer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 30px;
+            font-size: 2.2em;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #4a5568;
+        }
+        input, button {
+            padding: 10px;
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #48bb78, #38a169);
+            transition: width 0.3s ease;
+        }
+        .summary-box {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .summary-stat {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .result-panel {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
+        .round-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .round-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .round-item.best {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(72, 187, 120, 0.3);
+        }
+        .round-number {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .grand-prizes {
+            font-size: 1.6em;
+            font-weight: bold;
+            color: #f6ad55;
+            margin: 8px 0;
+        }
+        .round-item.best .grand-prizes {
+            color: #fed7aa;
+        }
+        .round-stats {
+            font-size: 0.85em;
+            color: #718096;
+            margin-top: 8px;
+        }
+        .round-item.best .round-stats {
+            color: rgba(255,255,255,0.9);
+        }
+        .efficiency-chart {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+        }
+        .chart-bars {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 8px;
+            margin-top: 15px;
+            align-items: end;
+        }
+        .chart-bar {
+            background: #e2e8f0;
+            border-radius: 4px;
+            position: relative;
+            height: 200px;
+            display: flex;
+            align-items: end;
+        }
+        .bar-fill {
+            width: 100%;
+            background: linear-gradient(to top, #f6ad55, #ed8936);
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .chart-bar.best .bar-fill {
+            background: linear-gradient(to top, #48bb78, #38a169);
+        }
+        .bar-label {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .bar-value {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            font-weight: bold;
+            color: #4a5568;
+            text-align: center;
+        }
+        .analysis-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .analysis-table th,
+        .analysis-table td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .analysis-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+        .analysis-table tr:nth-child(even) {
+            background: #f7fafc;
+        }
+        .best-row {
+            background: #c6f6d5 !important;
+            font-weight: bold;
+        }
+        .cost-breakdown {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .cost-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .cost-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .cost-label {
+            font-size: 0.85em;
+            color: #718096;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏆 Grand Prize Farming Optimizer</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="budget">Total Budget (Tokens):</label>
+                <input type="number" id="budget" value="50" min="10" max="1000">
+            </div>
+            <div class="control-group">
+                <label for="simulations">Simulations:</label>
+                <input type="number" id="simulations" value="25000" min="5000" max="100000">
+            </div>
+            <div class="control-group" style="grid-column: span 2;">
+                <button id="runAnalysis" onclick="runFarmingAnalysis()">🚀 Optimize Grand Prize Farming</button>
+            </div>
+        </div>
+
+        <div id="progressContainer" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div id="progressText" style="text-align: center; margin-top: 10px;">Optimizing strategies...</div>
+        </div>
+
+        <div id="summaryBox" class="summary-box">
+            <h2>🎯 Optimal Farming Strategy</h2>
+            <div>Reset after <span class="summary-stat" id="optimalRound">-</span> rounds</div>
+            <div>Expected Grand Prizes: <span class="summary-stat" id="expectedPrizes">-</span></div>
+            <div>Efficiency: <span id="efficiency">-</span> prizes per 10 tokens</div>
+        </div>
+
+        <div class="results-grid">
+            <div class="result-panel">
+                <h3>🏅 Grand Prizes by Reset Strategy</h3>
+                <div class="round-results" id="roundResults">
+                    <!-- Round results will be populated here -->
+                </div>
+            </div>
+            
+            <div class="result-panel">
+                <h3>💰 Cost Breakdown (Best Strategy)</h3>
+                <div class="cost-breakdown" id="costBreakdown">
+                    <!-- Cost breakdown will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="efficiency-chart">
+            <h3>📈 Grand Prize Efficiency by Strategy</h3>
+            <div class="chart-bars" id="efficiencyChart">
+                <!-- Efficiency chart will be populated here -->
+            </div>
+        </div>
+
+        <div class="efficiency-chart">
+            <h3>📋 Detailed Strategy Analysis</h3>
+            <table class="analysis-table">
+                <thead>
+                    <tr>
+                        <th>Reset Round</th>
+                        <th>Avg Grand Prizes</th>
+                        <th>Efficiency (per 10 tokens)</th>
+                        <th>Avg Cost per Prize</th>
+                        <th>Budget Utilization</th>
+                        <th>Expected Profit Margin</th>
+                    </tr>
+                </thead>
+                <tbody id="analysisBody">
+                    <!-- Analysis data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Game configuration
+        const INITIAL_POOLS = {
+            pool1: { count: 3 },
+            pool2: { count: 2 },
+            pool3: { count: 1 },
+            pool4: { count: 1 },
+            pool5: { count: 1 },
+            pool6: { count: 1 },
+            grandPrize: { count: 1 }
+        };
+
+        const ROUND_COSTS = [0, 1, 2, 3, 4, 6, 8, 12, 15, 20, 25];
+        const RESET_COSTS = [0, 15, 14, 13, 10, 6, 5, 4, 3, 2, 1, 0];
+
+        class GameState {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.pools = JSON.parse(JSON.stringify(INITIAL_POOLS));
+                this.totalItems = Object.values(this.pools).reduce((sum, pool) => sum + pool.count, 0);
+                this.round = 1;
+                this.sessionCost = 0;
+                this.grandPrizeWon = false;
+            }
+
+            drawItem() {
+                if (this.totalItems === 0 || this.grandPrizeWon) return null;
+                
+                const rand = Math.random();
+                let itemIndex = Math.floor(rand * this.totalItems);
+                
+                // Find which pool the selected item belongs to
+                for (let [key, pool] of Object.entries(this.pools)) {
+                    if (pool.count > itemIndex) {
+                        pool.count--;
+                        this.totalItems--;
+                        this.sessionCost += ROUND_COSTS[this.round];
+                        
+                        if (key === 'grandPrize') {
+                            this.grandPrizeWon = true;
+                        }
+                        
+                        this.round++;
+                        return key;
+                    }
+                    itemIndex -= pool.count;
+                }
+                return null;
+            }
+
+            getGrandPrizeProbability() {
+                return this.totalItems > 0 ? (this.pools.grandPrize.count / this.totalItems) * 100 : 0;
+            }
+        }
+
+        function simulateFarmingStrategy(resetRound, budget, numSimulations) {
+            let totalGrandPrizes = 0;
+            let totalBudgetUsed = 0;
+            let totalSessions = 0;
+            let costPerPrize = [];
+
+            for (let sim = 0; sim < numSimulations; sim++) {
+                let game = new GameState();
+                let remainingBudget = budget;
+                let grandPrizesThisSim = 0;
+                let budgetUsed = 0;
+
+                while (remainingBudget > 0) {
+                    let roundsPlayed = 0;
+                    let sessionStartBudget = remainingBudget;
+
+                    // Play until we hit the reset round, win, or run out of budget
+                    while (roundsPlayed < resetRound && 
+                           game.round <= 10 && 
+                           !game.grandPrizeWon && 
+                           game.pools.grandPrize.count > 0 &&
+                           remainingBudget >= ROUND_COSTS[game.round]) {
+                        
+                        const item = game.drawItem();
+                        remainingBudget -= ROUND_COSTS[game.round - 1]; // Subtract cost of the round we just played
+                        budgetUsed += ROUND_COSTS[game.round - 1];
+                        roundsPlayed++;
+                        
+                        if (item === 'grandPrize') {
+                            grandPrizesThisSim++;
+                            costPerPrize.push(sessionStartBudget - remainingBudget);
+                            // Grand prize won - free reset!
+                            game.reset();
+                            break;
+                        }
+                    }
+
+                    // If we didn't win the grand prize, we need to reset
+                    if (!game.grandPrizeWon && remainingBudget > 0) {
+                        const resetCost = RESET_COSTS[Math.min(game.round, 11)];
+                        if (remainingBudget >= resetCost) {
+                            remainingBudget -= resetCost;
+                            budgetUsed += resetCost;
+                            game.reset();
+                        } else {
+                            break; // Not enough budget to reset
+                        }
+                    }
+
+                    totalSessions++;
+                }
+
+                totalGrandPrizes += grandPrizesThisSim;
+                totalBudgetUsed += budgetUsed;
+            }
+
+            const avgGrandPrizes = totalGrandPrizes / numSimulations;
+            const avgBudgetUsed = totalBudgetUsed / numSimulations;
+            const efficiency = (avgGrandPrizes / budget) * 10; // Prizes per 10 tokens
+            const avgCostPerPrize = costPerPrize.length > 0 ? costPerPrize.reduce((a, b) => a + b, 0) / costPerPrize.length : 0;
+            const budgetUtilization = (avgBudgetUsed / budget) * 100;
+
+            return {
+                resetRound,
+                avgGrandPrizes,
+                efficiency,
+                avgCostPerPrize,
+                budgetUtilization,
+                avgBudgetUsed
+            };
+        }
+
+        async function runFarmingAnalysis() {
+            const budget = parseInt(document.getElementById('budget').value);
+            const numSims = parseInt(document.getElementById('simulations').value);
+
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('runAnalysis').disabled = true;
+
+            const results = [];
+            
+            // Test each possible reset round (1-10)
+            for (let round = 1; round <= 10; round++) {
+                document.getElementById('progressFill').style.width = (round / 10) * 100 + '%';
+                document.getElementById('progressText').textContent = `Testing reset at round ${round}/10...`;
+                
+                await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI update
+                
+                const result = simulateFarmingStrategy(round, budget, numSims);
+                results.push(result);
+            }
+
+            displayFarmingResults(results, budget);
+            
+            document.getElementById('progressContainer').style.display = 'none';
+            document.getElementById('runAnalysis').disabled = false;
+        }
+
+        function displayFarmingResults(results, budget) {
+            // Find optimal strategy (most grand prizes)
+            const bestResult = results.reduce((best, current) => 
+                current.avgGrandPrizes > best.avgGrandPrizes ? current : best
+            );
+
+            // Display summary
+            document.getElementById('summaryBox').style.display = 'block';
+            document.getElementById('optimalRound').textContent = bestResult.resetRound;
+            document.getElementById('expectedPrizes').textContent = bestResult.avgGrandPrizes.toFixed(2);
+            document.getElementById('efficiency').textContent = bestResult.efficiency.toFixed(2);
+
+            // Display round results
+            const roundResultsHtml = results.map(result => `
+                <div class="round-item ${result.resetRound === bestResult.resetRound ? 'best' : ''}">
+                    <div class="round-number">Round ${result.resetRound}</div>
+                    <div class="grand-prizes">🏆 ${result.avgGrandPrizes.toFixed(2)}</div>
+                    <div class="round-stats">
+                        ${result.efficiency.toFixed(2)}/10 tokens<br>
+                        ${result.budgetUtilization.toFixed(1)}% budget used
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('roundResults').innerHTML = roundResultsHtml;
+
+            // Display cost breakdown for best strategy
+            const costBreakdownHtml = `
+                <div class="cost-item">
+                    <div class="cost-value">${bestResult.avgCostPerPrize.toFixed(1)}</div>
+                    <div class="cost-label">Cost per Prize</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-value">${bestResult.avgBudgetUsed.toFixed(1)}</div>
+                    <div class="cost-label">Avg Budget Used</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-value">${(budget - bestResult.avgBudgetUsed).toFixed(1)}</div>
+                    <div class="cost-label">Avg Leftover</div>
+                </div>
+                <div class="cost-item">
+                    <div class="cost-value">${((bestResult.avgGrandPrizes * 100) / bestResult.avgBudgetUsed).toFixed(1)}%</div>
+                    <div class="cost-label">ROI (if prizes worth 1 token)</div>
+                </div>
+            `;
+            document.getElementById('costBreakdown').innerHTML = costBreakdownHtml;
+
+            // Display efficiency chart
+            const maxPrizes = Math.max(...results.map(r => r.avgGrandPrizes));
+            const chartHtml = results.map(result => `
+                <div class="chart-bar ${result.resetRound === bestResult.resetRound ? 'best' : ''}">
+                    <div class="bar-fill" style="height: ${(result.avgGrandPrizes / maxPrizes) * 100}%;">
+                        <div class="bar-value">${result.avgGrandPrizes.toFixed(2)}<br>prizes</div>
+                    </div>
+                    <div class="bar-label">R${result.resetRound}</div>
+                </div>
+            `).join('');
+            document.getElementById('efficiencyChart').innerHTML = chartHtml;
+
+            // Display detailed analysis table
+            const tableHtml = results.map(result => `
+                <tr class="${result.resetRound === bestResult.resetRound ? 'best-row' : ''}">
+                    <td>${result.resetRound}</td>
+                    <td>${result.avgGrandPrizes.toFixed(2)}</td>
+                    <td>${result.efficiency.toFixed(2)}</td>
+                    <td>${result.avgCostPerPrize.toFixed(1)}</td>
+                    <td>${result.budgetUtilization.toFixed(1)}%</td>
+                    <td>${(((result.avgGrandPrizes * 10) - result.avgBudgetUsed) / result.avgBudgetUsed * 100).toFixed(1)}%</td>
+                </tr>
+            `).join('');
+            document.getElementById('analysisBody').innerHTML = tableHtml;
+        }
+
+        // Run analysis on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            runFarmingAnalysis();
+        });
+    </script>
+</body>
+</html>
