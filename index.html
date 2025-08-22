@@ -144,6 +144,14 @@
         .round-item.best .round-stats {
             color: rgba(255,255,255,0.9);
         }
+        .round-item.impossible {
+            background: #fed7d7;
+            color: #c53030;
+            opacity: 0.7;
+        }
+        .round-item.impossible .grand-prizes {
+            color: #c53030;
+        }
         .efficiency-chart {
             background: white;
             padding: 20px;
@@ -217,6 +225,11 @@
             background: #c6f6d5 !important;
             font-weight: bold;
         }
+        .impossible-row {
+            background: #fed7d7 !important;
+            color: #c53030;
+            font-style: italic;
+        }
         .cost-breakdown {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -271,7 +284,7 @@
             <h2>🎯 Optimal Farming Strategy</h2>
             <div>Reset after <span class="summary-stat" id="optimalRound">-</span> rounds</div>
             <div>Expected Grand Prizes: <span class="summary-stat" id="expectedPrizes">-</span></div>
-            <div>Efficiency: <span id="efficiency">-</span> prizes per 10 tokens</div>
+            <div>Efficiency: <span id="efficiency">-</span> prizes per token</div>
         </div>
 
         <div class="results-grid">
@@ -304,7 +317,7 @@
                     <tr>
                         <th>Reset Round</th>
                         <th>Avg Grand Prizes</th>
-                        <th>Efficiency (per 10 tokens)</th>
+                        <th>Efficiency (per token)</th>
                         <th>Avg Cost per Prize</th>
                         <th>Budget Utilization</th>
                         <th>Expected Profit Margin</th>
@@ -318,19 +331,28 @@
     </div>
 
     <script>
-        // Game configuration
+        // Game configuration with individual item probabilities
         const INITIAL_POOLS = {
-            pool1: { count: 3 },
-            pool2: { count: 2 },
-            pool3: { count: 1 },
-            pool4: { count: 1 },
-            pool5: { count: 1 },
-            pool6: { count: 1 },
-            grandPrize: { count: 1 }
+            pool1: { count: 3, itemProb: 19.95 }, // Each of 3 items has 19.95% chance
+            pool2: { count: 2, itemProb: 7.67 },  // Each of 2 items has 7.67% chance
+            pool3: { count: 1, itemProb: 7.67 },  // 1 item has 7.67% chance
+            pool4: { count: 1, itemProb: 9.21 },  // 1 item has 9.21% chance
+            pool5: { count: 1, itemProb: 3.07 },  // 1 item has 3.07% chance
+            pool6: { count: 1, itemProb: 3.07 },  // 1 item has 3.07% chance
+            grandPrize: { count: 1, itemProb: 1.79 } // 1 item has 1.79% chance
         };
 
-        const ROUND_COSTS = [0, 1, 2, 3, 4, 6, 8, 12, 15, 20, 25];
-        const RESET_COSTS = [0, 15, 14, 13, 10, 6, 5, 4, 3, 2, 1, 0];
+        const ROUND_COSTS = [0, 1, 2, 3, 4, 6, 8, 12, 15, 20, 25]; // Index 0 unused, rounds 1-10
+        const RESET_COSTS = [0, 15, 14, 13, 10, 6, 5, 4, 3, 2, 1, 0]; // Index 0 unused, rounds 1-11
+
+        // Helper function to calculate cumulative cost to reach a specific round
+        function getCumulativeCost(round) {
+            let total = 0;
+            for (let i = 1; i <= round; i++) {
+                total += ROUND_COSTS[i];
+            }
+            return total;
+        }
 
         class GameState {
             constructor() {
@@ -341,37 +363,68 @@
                 this.pools = JSON.parse(JSON.stringify(INITIAL_POOLS));
                 this.totalItems = Object.values(this.pools).reduce((sum, pool) => sum + pool.count, 0);
                 this.round = 1;
-                this.sessionCost = 0;
                 this.grandPrizeWon = false;
             }
 
             drawItem() {
                 if (this.totalItems === 0 || this.grandPrizeWon) return null;
                 
-                const rand = Math.random();
-                let itemIndex = Math.floor(rand * this.totalItems);
+                // Calculate current probabilities based on remaining items
+                const currentProbs = this.getCurrentProbabilities();
+                const rand = Math.random() * 100;
+                let cumulative = 0;
                 
-                // Find which pool the selected item belongs to
+                // Use weighted probability selection based on individual items
                 for (let [key, pool] of Object.entries(this.pools)) {
-                    if (pool.count > itemIndex) {
-                        pool.count--;
-                        this.totalItems--;
-                        this.sessionCost += ROUND_COSTS[this.round];
-                        
-                        if (key === 'grandPrize') {
-                            this.grandPrizeWon = true;
+                    if (pool.count > 0) {
+                        cumulative += currentProbs[key];
+                        if (rand <= cumulative) {
+                            // Remove one item from this pool
+                            pool.count--;
+                            this.totalItems--;
+                            
+                            if (key === 'grandPrize') {
+                                this.grandPrizeWon = true;
+                            }
+                            
+                            this.round++;
+                            return key;
                         }
-                        
-                        this.round++;
-                        return key;
                     }
-                    itemIndex -= pool.count;
                 }
                 return null;
             }
 
+            getCurrentProbabilities() {
+                const probs = {};
+                let totalRemainingProb = 0;
+                
+                // Calculate total probability for remaining items in each pool
+                for (let [key, pool] of Object.entries(this.pools)) {
+                    if (pool.count > 0) {
+                        // Each remaining item in this pool has the same individual probability
+                        probs[key] = pool.itemProb * pool.count;
+                        totalRemainingProb += probs[key];
+                    } else {
+                        probs[key] = 0;
+                    }
+                }
+                
+                // Renormalize to 100% based on remaining probability space
+                if (totalRemainingProb > 0) {
+                    for (let key in probs) {
+                        probs[key] = (probs[key] / totalRemainingProb) * 100;
+                    }
+                }
+                
+                return probs;
+            }
+
             getGrandPrizeProbability() {
-                return this.totalItems > 0 ? (this.pools.grandPrize.count / this.totalItems) * 100 : 0;
+                if (this.totalItems === 0 || this.pools.grandPrize.count === 0) return 0;
+                
+                const currentProbs = this.getCurrentProbabilities();
+                return currentProbs.grandPrize || 0;
             }
         }
 
@@ -386,56 +439,95 @@
                 let remainingBudget = budget;
                 let grandPrizesThisSim = 0;
                 let budgetUsed = 0;
+                let sessionCount = 0;
 
-                while (remainingBudget > 0) {
+                while (remainingBudget > 0 && sessionCount < 1000) { // Safety limit
+                    sessionCount++;
                     let roundsPlayed = 0;
-                    let sessionStartBudget = remainingBudget;
+                    let sessionCost = 0;
+
+                    // Check if we can afford at least one round
+                    if (remainingBudget < ROUND_COSTS[game.round]) {
+                        break; // Can't afford even the next round
+                    }
 
                     // Play until we hit the reset round, win, or run out of budget
                     while (roundsPlayed < resetRound && 
                            game.round <= 10 && 
                            !game.grandPrizeWon && 
-                           game.pools.grandPrize.count > 0 &&
-                           remainingBudget >= ROUND_COSTS[game.round]) {
+                           game.pools.grandPrize.count > 0) {
+                        
+                        const nextRoundCost = ROUND_COSTS[game.round];
+                        if (remainingBudget < nextRoundCost) {
+                            break; // Can't afford next round
+                        }
                         
                         const item = game.drawItem();
-                        remainingBudget -= ROUND_COSTS[game.round - 1]; // Subtract cost of the round we just played
-                        budgetUsed += ROUND_COSTS[game.round - 1];
+                        if (item === null) break; // No more items to draw
+                        
+                        // Track cost for the round we just played
+                        const currentRoundCost = ROUND_COSTS[game.round - 1]; // Cost of round we just played
+                        sessionCost += currentRoundCost;
+                        remainingBudget -= currentRoundCost;
+                        budgetUsed += currentRoundCost;
                         roundsPlayed++;
                         
                         if (item === 'grandPrize') {
                             grandPrizesThisSim++;
-                            costPerPrize.push(sessionStartBudget - remainingBudget);
+                            costPerPrize.push(sessionCost);
                             // Grand prize won - free reset!
                             game.reset();
+                            sessionCost = 0;
                             break;
                         }
                     }
 
-                    // If we didn't win the grand prize, we need to reset
-                    if (!game.grandPrizeWon && remainingBudget > 0) {
+                    // If we didn't win the grand prize, we need to reset (if we can afford it)
+                    if (!game.grandPrizeWon && remainingBudget > 0 && game.pools.grandPrize.count > 0) {
                         const resetCost = RESET_COSTS[Math.min(game.round, 11)];
                         if (remainingBudget >= resetCost) {
                             remainingBudget -= resetCost;
                             budgetUsed += resetCost;
+                            sessionCost += resetCost;
                             game.reset();
                         } else {
                             break; // Not enough budget to reset
                         }
+                    } else if (game.pools.grandPrize.count === 0 || game.round > 10) {
+                        // Game ended without grand prize, reset for free if possible
+                        game.reset();
+                        sessionCost = 0;
                     }
 
-                    totalSessions++;
+                    if (remainingBudget <= 0) break;
                 }
 
                 totalGrandPrizes += grandPrizesThisSim;
                 totalBudgetUsed += budgetUsed;
+                totalSessions += sessionCount;
             }
 
             const avgGrandPrizes = totalGrandPrizes / numSimulations;
             const avgBudgetUsed = totalBudgetUsed / numSimulations;
-            const efficiency = (avgGrandPrizes / budget) * 10; // Prizes per 10 tokens
+            const efficiency = avgGrandPrizes / budget; // Prizes per token
             const avgCostPerPrize = costPerPrize.length > 0 ? costPerPrize.reduce((a, b) => a + b, 0) / costPerPrize.length : 0;
             const budgetUtilization = (avgBudgetUsed / budget) * 100;
+
+            // Debug logging for first strategy tested
+            if (resetRound === 1) {
+                console.log(`Debug - Reset Round 1:`);
+                console.log(`Total grand prizes across all sims: ${totalGrandPrizes}`);
+                console.log(`Avg grand prizes per sim: ${avgGrandPrizes}`);
+                console.log(`Avg budget used: ${avgBudgetUsed}`);
+                console.log(`Efficiency: ${efficiency}`);
+                console.log(`Sample cost per prize (first 5):`, costPerPrize.slice(0, 5));
+            }
+
+            // Debug cumulative costs
+            if (resetRound === 8) {
+                console.log(`Debug - Cumulative cost to reach round 8: ${getCumulativeCost(8)}`);
+                console.log(`Budget: ${budget}, Can afford round 8: ${budget >= getCumulativeCost(8)}`);
+            }
 
             return {
                 resetRound,
@@ -463,8 +555,23 @@
                 
                 await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI update
                 
-                const result = simulateFarmingStrategy(round, budget, numSims);
-                results.push(result);
+                // Check if this strategy is even possible with the budget
+                const cumulativeCost = getCumulativeCost(round);
+                if (budget < cumulativeCost) {
+                    console.log(`Skipping round ${round} - requires ${cumulativeCost} tokens but budget is ${budget}`);
+                    results.push({
+                        resetRound: round,
+                        avgGrandPrizes: 0,
+                        efficiency: 0,
+                        avgCostPerPrize: 0,
+                        budgetUtilization: 0,
+                        avgBudgetUsed: 0,
+                        impossible: true
+                    });
+                } else {
+                    const result = simulateFarmingStrategy(round, budget, numSims);
+                    results.push(result);
+                }
             }
 
             displayFarmingResults(results, budget);
@@ -474,8 +581,9 @@
         }
 
         function displayFarmingResults(results, budget) {
-            // Find optimal strategy (most grand prizes)
-            const bestResult = results.reduce((best, current) => 
+            // Find optimal strategy (most grand prizes, excluding impossible ones)
+            const possibleResults = results.filter(r => !r.impossible);
+            const bestResult = possibleResults.reduce((best, current) => 
                 current.avgGrandPrizes > best.avgGrandPrizes ? current : best
             );
 
@@ -487,12 +595,12 @@
 
             // Display round results
             const roundResultsHtml = results.map(result => `
-                <div class="round-item ${result.resetRound === bestResult.resetRound ? 'best' : ''}">
+                <div class="round-item ${result.resetRound === bestResult.resetRound ? 'best' : ''} ${result.impossible ? 'impossible' : ''}">
                     <div class="round-number">Round ${result.resetRound}</div>
-                    <div class="grand-prizes">🏆 ${result.avgGrandPrizes.toFixed(2)}</div>
+                    <div class="grand-prizes">🏆 ${result.impossible ? 'IMPOSSIBLE' : result.avgGrandPrizes.toFixed(2)}</div>
                     <div class="round-stats">
-                        ${result.efficiency.toFixed(2)}/10 tokens<br>
-                        ${result.budgetUtilization.toFixed(1)}% budget used
+                        ${result.impossible ? 'Requires ' + getCumulativeCost(result.resetRound) + ' tokens' : result.efficiency.toFixed(4) + '/token'}<br>
+                        ${result.impossible ? 'Budget: ' + budget + ' tokens' : result.budgetUtilization.toFixed(1) + '% budget used'}
                     </div>
                 </div>
             `).join('');
@@ -533,13 +641,13 @@
 
             // Display detailed analysis table
             const tableHtml = results.map(result => `
-                <tr class="${result.resetRound === bestResult.resetRound ? 'best-row' : ''}">
+                <tr class="${result.resetRound === bestResult.resetRound ? 'best-row' : ''} ${result.impossible ? 'impossible-row' : ''}">
                     <td>${result.resetRound}</td>
-                    <td>${result.avgGrandPrizes.toFixed(2)}</td>
-                    <td>${result.efficiency.toFixed(2)}</td>
-                    <td>${result.avgCostPerPrize.toFixed(1)}</td>
-                    <td>${result.budgetUtilization.toFixed(1)}%</td>
-                    <td>${(((result.avgGrandPrizes * 10) - result.avgBudgetUsed) / result.avgBudgetUsed * 100).toFixed(1)}%</td>
+                    <td>${result.impossible ? 'IMPOSSIBLE' : result.avgGrandPrizes.toFixed(2)}</td>
+                    <td>${result.impossible ? 'N/A' : result.efficiency.toFixed(4)}</td>
+                    <td>${result.impossible ? 'N/A' : result.avgCostPerPrize.toFixed(1)}</td>
+                    <td>${result.impossible ? 'N/A' : result.budgetUtilization.toFixed(1) + '%'}</td>
+                    <td>${result.impossible ? 'N/A' : (((result.avgGrandPrizes * 10) - result.avgBudgetUsed) / result.avgBudgetUsed * 100).toFixed(1) + '%'}</td>
                 </tr>
             `).join('');
             document.getElementById('analysisBody').innerHTML = tableHtml;
